@@ -1,0 +1,10 @@
+#case_id	fixture	extra_env	jq_field	expected
+personal-account	personal	-	account	personal
+personal-provider	personal	-	provider	anthropic
+personal-source	personal	-	source	default
+adixi-account	adixi	-	account	adixi
+adixi-source	adixi	-	source	env
+bedrock-provider	bedrock	CLAUDE_CODE_USE_BEDROCK=1	provider	bedrock
+bedrock-account-still-resolved	bedrock	CLAUDE_CODE_USE_BEDROCK=1	account	personal
+missing-account	missing	-	account	unknown
+missing-provider	missing	-	provider	anthropic
