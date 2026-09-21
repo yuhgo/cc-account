@@ -25,19 +25,85 @@ $ cc-account use adixi
 切り替えが zsh 関数なのは、独立 CLI（子プロセス）では `export` が親シェルに残らず
 **原理的に不可能**だから。
 
-## インストール
+## 導入手順
+
+### 1. clone する
 
 ```sh
 ghq get yuhgo/cc-account          # または git clone
 ```
 
-`.zshrc` に 1 行:
+private リポジトリなので、`gh` のアクティブアカウントが別アカウントだと **404** になる。
+その場合は `gh auth switch -u yuhgo`。
+
+### 2. `.zshrc` に 1 行足す
 
 ```sh
-source ~/ghq/github.com/yuhgo/cc-account/cc-account.plugin.zsh
+[ -f ~/ghq/github.com/yuhgo/cc-account/cc-account.plugin.zsh ] \
+  && source ~/ghq/github.com/yuhgo/cc-account/cc-account.plugin.zsh
 ```
 
 プラグインは**自分の置き場所を自動で解決する**ので、どこに clone してもよい。
+`[ -f ]` で囲むのは、**未 clone のマシンで `.zshrc` を壊さない**ため（dotfiles を
+複数マシンで共有しているなら必須）。
+
+> **`.zshrc` を OS 別に分けているなら、両方に入れる。** mac 用と WSL 用で
+> 別ファイルにしている場合、片方だけだと `command not found` になる
+> （実際にこれで WSL 側が動いていなかった）。
+
+### 3. Bedrock を使うなら素材変数を置く
+
+`~/.zshrc.local` のような **git 追跡外**のファイルに置き、権限を 600 にする。
+詳細は[「Bedrock の認証情報（素材変数）」](#bedrock-の認証情報素材変数)。
+
+```sh
+export CC_ACCOUNT_BEDROCK_REGION="us-east-1"
+export CC_ACCOUNT_BEDROCK_API_KEY="..."
+export CC_ACCOUNT_BEDROCK_MODEL_OPUS="us.anthropic.claude-opus-5[1m]"
+```
+
+```sh
+chmod 600 ~/.zshrc.local
+```
+
+Bedrock を使わないなら丸ごと不要。素材が無くても他のサブコマンドは動く。
+
+### 4. 会社アカウント側の設定置き場を用意する（`use adixi` を使うなら）
+
+```sh
+CLAUDE_CONFIG_DIR=~/.claude-adixi claude /login   # 各マシンで 1 回
+```
+
+組織名が `ADiXi Inc.` 以外なら `CC_ACCOUNT_ORG_NAME` ほかを上書きする（[設定](#設定)）。
+
+### 5. 反映して確認する
+
+```sh
+source ~/.zshrc
+cc-account --help
+```
+
+| 見るところ | 期待 |
+|---|---|
+| `現在` の行 | `account=` / `provider=` が出る（出ないなら `python3` が PATH に無い） |
+| `Bedrock の素材` | 置いたものが `✓`、置いていないものが `-` |
+
+動作確認まで一通りやるなら:
+
+```sh
+cc-account use bedrock && cc-account && cc-account off && cc-account
+```
+
+### 必要なもの
+
+| 依存 | 用途 | 無いとどうなるか |
+|---|---|---|
+| `zsh` | プラグイン本体 | 動かない（bash 非対応） |
+| `python3` | 判定スクリプト | `cc-account` の**表示だけ**失敗する。切り替えは動く |
+| `direnv`（任意） | 場所による自動切り替え | 手動切り替えのみになる |
+| `bun` / `node`（任意） | statusline モジュール | statusline に出せないだけ |
+
+`python3` は OS 同梱のもので足りる（3.10 で確認済み。標準ライブラリのみ使用）。
 
 ### statusline に出す（任意）
 
