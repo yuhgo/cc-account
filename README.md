@@ -113,6 +113,42 @@ export CC_ACCOUNT_ORG_LABEL="example"
 export CC_ACCOUNT_ADIXI_DIR="$HOME/.claude-example"
 ```
 
+### Bedrock の認証情報（素材変数）
+
+`use bedrock` は、以下の **素材変数**が定義されていれば、Claude Code が実際に読む変数名へ
+展開する。`off` は**展開したものだけ**を `unset` する。
+
+| 素材変数（あなたが置く） | 展開先（Claude Code が読む） |
+|---|---|
+| `CC_ACCOUNT_BEDROCK_REGION` | `AWS_REGION` |
+| `CC_ACCOUNT_BEDROCK_API_KEY` | `AWS_BEARER_TOKEN_BEDROCK` |
+| `CC_ACCOUNT_BEDROCK_MODEL_OPUS` | `ANTHROPIC_DEFAULT_OPUS_MODEL` |
+| `CC_ACCOUNT_BEDROCK_MODEL_SONNET` | `ANTHROPIC_DEFAULT_SONNET_MODEL` |
+| `CC_ACCOUNT_BEDROCK_MODEL_HAIKU` | `ANTHROPIC_DEFAULT_HAIKU_MODEL` |
+
+置き場所は **`~/.zshrc.local`**（git 追跡外・権限 600）。現在の設定状況は
+`cc-account --help` の末尾に `✓` / `-` で出る。
+
+```sh
+# ~/.zshrc.local
+export CC_ACCOUNT_BEDROCK_REGION="us-east-1"
+export CC_ACCOUNT_BEDROCK_API_KEY="..."            # Bedrock API キー
+export CC_ACCOUNT_BEDROCK_MODEL_OPUS="us.anthropic.claude-opus-5[1m]"
+```
+
+**右辺の変数名を直接 export してはいけない。** 2 つの理由がある。
+
+1. `ANTHROPIC_DEFAULT_*` の値は `us.anthropic.*` 形式の **Bedrock 専用 ID** なので、
+   Bedrock 無効時に効くとサブスク経由のモデル解決が壊れる
+2. `AWS_REGION` は AWS CLI 全体の既定リージョンを書き換えてしまう
+
+素材が未設定の変数は展開も `unset` もしない。`AWS_PROFILE` 運用で元から `AWS_REGION` を
+持っている環境を `off` が壊さないのはこのため。
+
+> **`settings.json` の `env` に書くのは避ける。** そちらは全セッションに常時効くので
+> `cc-account off` で解除できず、「その場だけ切り替える」という本ツールの前提が崩れる。
+> 加えて `settings.json` は dotfiles の追跡対象になりやすく、キーの平文コミット事故を招く。
+
 ## Bedrock が「場所非依存」である理由
 
 `direnv` の `.envrc` が export するのは **`CLAUDE_CONFIG_DIR` のみ**。
@@ -127,12 +163,17 @@ Bedrock 系（`CLAUDE_CODE_USE_BEDROCK` ほか）は direnv に触られない�
 ## テスト
 
 ```sh
-bash tests/run-cc-account-tests.sh      # 判定スクリプト（13 ケース）
-bun test tests/account-state.test.ts    # 状態モジュール（9 ケース）
+bash tests/run-cc-account-tests.sh        # 判定スクリプト（13 ケース）
+bun test tests/account-state.test.ts      # 状態モジュール（9 ケース）
+zsh tests/bedrock-expansion.test.zsh      # 素材変数の展開 / 解除（4 ケース）
 ```
 
 fixture は一時ディレクトリに作り、`HOME` / `CLAUDE_CONFIG_DIR` を差し替えるので
 **実ユーザーの設定は読まないし壊さない**。
+
+> **`run-cc-account-tests.sh` は provider 系 env を隔離していない**。呼び出し元の環境で
+> `CLAUDE_CODE_USE_BEDROCK` が立っていると 2 ケース落ちる。当面は
+> `env -u CLAUDE_CODE_USE_BEDROCK bash tests/run-cc-account-tests.sh` で回避する。
 
 ## Gotchas
 
@@ -144,7 +185,15 @@ fixture は一時ディレクトリに作り、`HOME` / `CLAUDE_CONFIG_DIR` を�
   `CC_ACCOUNT_ORG_NAME` を更新する。未知の名前は `unknown` に落ちる
 - **`ANTHROPIC_API_KEY` が設定されていると、そちらが優先されてサブスクは使われない**。
   切り替えが効かないときはまずこの環境変数を疑う
-- **WSL 未確認**。macOS でのみ動作確認済み
+- **`settings.json` の `env` に Bedrock 系を書くと `off` が効かなくなる**。そちらは
+  Claude Code が起動時に自分のプロセスへ注入するので、シェル側で `unset` しても
+  立て直される。どのディレクトリでも常時 Bedrock になり、切り替えができない
+- **direnv は同一ディレクトリ内の `cd` では再評価しない**。会社 dir に居たまま
+  `use personal` → 同じ dir へ `cd` しても `personal` のまま。一度出れば復帰する。
+  direnv 本来の挙動で本ツールの不具合ではない
+- **WSL 動作確認済み**（2026-09-22 / WSL2 + Ubuntu 22.04）。`python3` は OS 同梱の
+  3.10.12 で足りる。`.zshrc` を mac / WSL で別ファイルに分けている dotfiles では、
+  **`source` 行を両方に入れる**必要がある（片方だけだと `command not found`）
 
 ## ライセンス
 

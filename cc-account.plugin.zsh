@@ -21,6 +21,21 @@ typeset -g _CC_ACCOUNT_ROOT="${${(%):-%N}:A:h}"
 # 会社（adixi）用の設定置き場。環境に合わせて上書きできる。
 : "${CC_ACCOUNT_ADIXI_DIR:=$HOME/.claude-adixi}"
 
+# Bedrock の素材 → Claude Code が実際に読む変数名 への対応表。
+#
+# 素材（CC_ACCOUNT_BEDROCK_*）は ~/.zshrc.local などの追跡外ファイルに置く。
+# 右辺を直接 export してはいけない: ANTHROPIC_DEFAULT_* の値は us.anthropic.*
+# 形式の Bedrock 専用 ID なので、Bedrock 無効時に効くとサブスク経由のモデル解決が
+# 壊れる。AWS_REGION も AWS CLI 全体の既定リージョンを書き換えてしまう。
+# そのため「Bedrock を有効化している間だけ」立てる。
+typeset -gA _CC_ACCOUNT_BEDROCK_VARS=(
+  CC_ACCOUNT_BEDROCK_REGION       AWS_REGION
+  CC_ACCOUNT_BEDROCK_API_KEY      AWS_BEARER_TOKEN_BEDROCK
+  CC_ACCOUNT_BEDROCK_MODEL_OPUS   ANTHROPIC_DEFAULT_OPUS_MODEL
+  CC_ACCOUNT_BEDROCK_MODEL_SONNET ANTHROPIC_DEFAULT_SONNET_MODEL
+  CC_ACCOUNT_BEDROCK_MODEL_HAIKU  ANTHROPIC_DEFAULT_HAIKU_MODEL
+)
+
 function cc-account() {
   local script="$_CC_ACCOUNT_ROOT/bin/cc-account.py"
 
@@ -48,6 +63,19 @@ function cc-account() {
           ;;
         bedrock)
           export CLAUDE_CODE_USE_BEDROCK=1
+
+          # 素材が定義されているものだけを本来の変数名へ展開する。
+          local src dst
+          for src dst in ${(kv)_CC_ACCOUNT_BEDROCK_VARS}; do
+            [[ -n "${(P)src}" ]] && export "$dst=${(P)src}"
+          done
+
+          if [[ -z "$CC_ACCOUNT_BEDROCK_API_KEY" && -z "$AWS_BEARER_TOKEN_BEDROCK" ]]; then
+            echo "cc-account: 警告 — 認証情報が見つかりません" >&2
+            echo "  CC_ACCOUNT_BEDROCK_API_KEY を ~/.zshrc.local に設定してください" >&2
+            echo "  （IAM ロール / AWS プロファイル経由で認証している場合はこの警告を無視して構いません）" >&2
+          fi
+
           echo "Bedrock を有効化しました（場所非依存。解除は 'cc-account off'）"
           ;;
         *)
@@ -61,6 +89,14 @@ function cc-account() {
     off)
       # Bedrock のみ解除する。CLAUDE_CONFIG_DIR は direnv の管轄なので触らない。
       unset CLAUDE_CODE_USE_BEDROCK
+
+      # use bedrock が展開した変数だけを戻す。素材が無いものは触らない
+      # （AWS_PROFILE 運用で元から AWS_REGION を持っている環境を壊さないため）。
+      local src dst
+      for src dst in ${(kv)_CC_ACCOUNT_BEDROCK_VARS}; do
+        [[ -n "${(P)src}" ]] && unset "$dst"
+      done
+
       echo "Bedrock を解除しました（設定置き場は direnv の判定に従います）"
       ;;
 
@@ -71,6 +107,16 @@ function cc-account() {
       echo "  cc-account use adixi     設定置き場を会社に上書き（このシェル限り）"
       echo "  cc-account use bedrock   Bedrock を有効化（場所非依存）"
       echo "  cc-account off           Bedrock のみ解除"
+      echo ""
+      echo "Bedrock の設定は ~/.zshrc.local に素材として置く（追跡外・権限 600）:"
+      local src
+      for src in ${(ok)_CC_ACCOUNT_BEDROCK_VARS}; do
+        if [[ -n "${(P)src}" ]]; then
+          echo "  $src ✓"
+        else
+          echo "  $src -"
+        fi
+      done
       ;;
 
     *)
