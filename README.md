@@ -72,7 +72,11 @@ cc-account use personal  # 設定置き場を個人に戻す（= CLAUDE_CONFIG_D
 cc-account use adixi     # 設定置き場を会社に上書き（このシェル限り）
 cc-account use bedrock   # Bedrock を有効化（場所非依存）
 cc-account off           # Bedrock のみ解除
+cc-account --help        # 現在の状態 + 全サブコマンド + 素材の設定状況
 ```
+
+`--help`（`-h` / `help` も同じ）は、使い方に加えて**今どのアカウント / プロバイダが効いているか**と、
+Bedrock 素材変数の設定状況（`✓` / `-`）を出す。状態を確かめてから切り替え先を選べる。
 
 - **`use personal` は `export` ではなく `unset`**。個人は「`CLAUDE_CONFIG_DIR` 未設定」が正なので、
   ここで明示 export すると direnv より優先され、会社 dir へ `cd` しても個人に固定されてしまう
@@ -165,7 +169,7 @@ Bedrock 系（`CLAUDE_CODE_USE_BEDROCK` ほか）は direnv に触られない�
 ```sh
 bash tests/run-cc-account-tests.sh        # 判定スクリプト（13 ケース）
 bun test tests/account-state.test.ts      # 状態モジュール（9 ケース）
-zsh tests/bedrock-expansion.test.zsh      # 素材変数の展開 / 解除（4 ケース）
+zsh tests/bedrock-expansion.test.zsh      # 素材変数の展開 / 解除・help（8 ケース）
 ```
 
 fixture は一時ディレクトリに作り、`HOME` / `CLAUDE_CONFIG_DIR` を差し替えるので

@@ -21,6 +21,10 @@ typeset -g _CC_ACCOUNT_ROOT="${${(%):-%N}:A:h}"
 # 会社（adixi）用の設定置き場。環境に合わせて上書きできる。
 : "${CC_ACCOUNT_ADIXI_DIR:=$HOME/.claude-adixi}"
 
+# 会社アカウントの短縮名。判定は bin/cc-account.py が持つが、help の文面でも
+# 参照するので既定値をこちらにも置く（両者の既定は一致させる）。
+: "${CC_ACCOUNT_ORG_LABEL:=adixi}"
+
 # Bedrock の素材 → Claude Code が実際に読む変数名 への対応表。
 #
 # 素材（CC_ACCOUNT_BEDROCK_*）は ~/.zshrc.local などの追跡外ファイルに置く。
@@ -34,6 +38,16 @@ typeset -gA _CC_ACCOUNT_BEDROCK_VARS=(
   CC_ACCOUNT_BEDROCK_MODEL_OPUS   ANTHROPIC_DEFAULT_OPUS_MODEL
   CC_ACCOUNT_BEDROCK_MODEL_SONNET ANTHROPIC_DEFAULT_SONNET_MODEL
   CC_ACCOUNT_BEDROCK_MODEL_HAIKU  ANTHROPIC_DEFAULT_HAIKU_MODEL
+)
+
+# 連想配列はキー順を保証しないので、表示用の並びを別に持つ
+# （設定する順序＝リージョン → 認証 → モデルで読めるようにする）。
+typeset -ga _CC_ACCOUNT_BEDROCK_ORDER=(
+  CC_ACCOUNT_BEDROCK_REGION
+  CC_ACCOUNT_BEDROCK_API_KEY
+  CC_ACCOUNT_BEDROCK_MODEL_OPUS
+  CC_ACCOUNT_BEDROCK_MODEL_SONNET
+  CC_ACCOUNT_BEDROCK_MODEL_HAIKU
 )
 
 function cc-account() {
@@ -101,22 +115,51 @@ function cc-account() {
       ;;
 
     -h|--help|help)
-      echo "使い方:"
-      echo "  cc-account               現在の状態を表示"
-      echo "  cc-account use personal  設定置き場を個人に戻す"
-      echo "  cc-account use adixi     設定置き場を会社に上書き（このシェル限り）"
-      echo "  cc-account use bedrock   Bedrock を有効化（場所非依存）"
-      echo "  cc-account off           Bedrock のみ解除"
+      echo "cc-account — Claude Code のアカウント / プロバイダを確認・切り替える"
+
+      # 現在の状態も出す。「何が効いているか」が分からないまま
+      # 切り替えコマンドを選ばせないため。
+      if [[ -f "$script" ]]; then
+        echo ""
+        echo "現在"
+        python3 "$script" 2>/dev/null | sed 's/^/  /'
+      fi
+
       echo ""
-      echo "Bedrock の設定は ~/.zshrc.local に素材として置く（追跡外・権限 600）:"
-      local src
-      for src in ${(ok)_CC_ACCOUNT_BEDROCK_VARS}; do
+      echo "表示"
+      echo "  cc-account            現在の状態を表示"
+      echo ""
+      echo "切り替え（いずれも実行したシェル限り。別のタブには及ばない）"
+      echo "  use personal   設定置き場を個人に戻す（CLAUDE_CONFIG_DIR を unset）"
+      # サブコマンド名は adixi 固定。ラベルだけが CC_ACCOUNT_ORG_LABEL で変わるので、
+      # 既定（adixi）から変えている環境では括弧で実体を補う。
+      if [[ "$CC_ACCOUNT_ORG_LABEL" == "adixi" ]]; then
+        echo "  use adixi      設定置き場を会社に上書き"
+      else
+        echo "  use adixi      設定置き場を会社（$CC_ACCOUNT_ORG_LABEL）に上書き"
+      fi
+      echo "                 → cd すると direnv の判定に戻る"
+      echo "  use bedrock    Bedrock を有効化（場所非依存。cd しても外れない）"
+      echo "  off            Bedrock のみ解除（設定置き場は direnv に委ねる）"
+      echo ""
+      echo "Bedrock の素材（~/.zshrc.local に置く。git 追跡外・権限 600）"
+
+      local src pad missing=0
+      for src in $_CC_ACCOUNT_BEDROCK_ORDER; do
+        pad="${(r:34:: :)src}"
         if [[ -n "${(P)src}" ]]; then
-          echo "  $src ✓"
+          echo "  $pad ✓"
         else
-          echo "  $src -"
+          echo "  $pad -"
+          (( missing++ ))
         fi
       done
+      if (( missing > 0 )); then
+        echo "  未設定（-）のものは use bedrock でも展開されません。"
+      fi
+
+      echo ""
+      echo "詳細: https://github.com/yuhgo/cc-account"
       ;;
 
     *)
