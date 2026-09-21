@@ -19,7 +19,7 @@ $ cc-account use adixi
 |------|---|------|
 | `bin/cc-account.py` | Python | 環境変数と設定ファイルから現在状態を判定し JSON で返す |
 | `cc-account.plugin.zsh` | zsh 関数 | `export` / `unset` を呼び出し元のシェルに残す |
-| `statusline/account-line.ts` | TS モジュール | statusline の 1 行を組み立てる |
+| `statusline/account-state.ts` | TS モジュール | 現在の状態を**素の値**で返す（表示は呼び出し側の裁量） |
 
 判定を切り出しているのは、**シェル関数と statusline が同じ答えを見る**ため。
 切り替えが zsh 関数なのは、独立 CLI（子プロセス）では `export` が親シェルに残らず
@@ -41,18 +41,25 @@ source ~/ghq/github.com/yuhgo/cc-account/cc-account.plugin.zsh
 
 ### statusline に出す（任意）
 
-```ts
-import { renderAccountLine } from "<clone先>/statusline/account-line.ts";
+**このモジュールは表示を持たない**。絵文字・ラベル・色・行の組み立ては
+呼び出し側の裁量とし、こちらは素の値だけを返す。
 
-const line6 = renderAccountLine();
-if (line6) output += "\n" + line6;
+```ts
+import { getAccountState } from "<clone先>/statusline/account-state.ts";
+
+const { account, provider, source } = getAccountState();
+const label = provider === "bedrock" ? `☁️ ${provider}` : `👤 ${account}`;
 ```
 
-| 状態 | 表示 |
-|------|------|
-| 個人 | `👤 personal` |
-| 会社 | `👤 adixi` |
-| Bedrock 有効 | `☁️ bedrock`（設定置き場より優先） |
+| キー | 値 |
+|------|---|
+| `account` | `personal` / `adixi` / 組織名を上書きしたときはその短縮名 |
+| `provider` | `anthropic` / `bedrock` |
+| `configDir` | 実際に使われている設定ディレクトリ |
+| `source` | `default` / `env` / `invalid`（`CLAUDE_CONFIG_DIR` が空文字） |
+
+`account` と `provider` は**独立の軸**なので、両方そのまま返す。
+どちらを優先して出すか（例: Bedrock 時はプロバイダだけ出す）は呼び出し側が決める。
 
 判定は**環境変数のみ**で行い、子プロセスもファイル読み取りも挟まない
 （`cc-account.py --no-file` と同じロジック）。描画のたびに走るため。
@@ -121,7 +128,7 @@ Bedrock 系（`CLAUDE_CODE_USE_BEDROCK` ほか）は direnv に触られない�
 
 ```sh
 bash tests/run-cc-account-tests.sh      # 判定スクリプト（13 ケース）
-bun test tests/account-line.test.ts     # statusline モジュール（8 ケース）
+bun test tests/account-state.test.ts    # 状態モジュール（9 ケース）
 ```
 
 fixture は一時ディレクトリに作り、`HOME` / `CLAUDE_CONFIG_DIR` を差し替えるので
